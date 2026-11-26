@@ -1,0 +1,57 @@
+# Laboratorio SSRF - Grupo 4 - ITIZ2302
+# Levantar:  docker compose up --build
+name: ssrf-lab
+
+services:
+  frontend-service:
+    build: ./frontend-service
+    container_name: frontend-service
+    ports:
+      - "8080:5000"            # ÚNICO puerto expuesto al host
+    networks:
+      public-net: {}
+      internal-net:
+        ipv4_address: 172.28.0.10
+    depends_on:
+      internal-admin-service:
+        condition: service_healthy
+      fake-metadata:
+        condition: service_healthy
+
+  internal-admin-service:
+    build: ./internal-admin-service
+    container_name: internal-admin-service
+    expose:
+      - "5001"                 # solo visible dentro de internal-net
+    networks:
+      internal-net:
+        ipv4_address: 172.28.0.20
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  fake-metadata:
+    build: ./fake-metadata
+    container_name: fake-metadata
+    expose:
+      - "80"                   # solo visible dentro de internal-net
+    networks:
+      internal-net:
+        ipv4_address: 172.28.0.30
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:80/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+networks:
+  public-net:
+    driver: bridge
+  internal-net:
+    driver: bridge
+    internal: true             # sin salida a Internet ni al host
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
